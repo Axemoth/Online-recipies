@@ -52,7 +52,10 @@
             </div>
         </section>
     }
-    @if(TempData["T1"]!=null)
+    @{
+        var userName = Context.Session.GetString("UserName");
+    }
+    @if(userName != null)
         {   <section class="Menu">
             <nav class="navbar navbar-expand-lg bg-" style="background:#142F4A">
                 <div class="container-fluid">
@@ -67,7 +70,7 @@
                             <a class="nav-link" style="color: #FDFEFE;font-size: 19px;"  asp-controller="Main" asp-action="VNBMenu">Veg</a>
                             <a class="nav-link" style="color: #FDFEFE;font-size: 19px;" asp-controller="Main" asp-action="VNBMenu">Non-Veg</a>
                             <a class="nav-link" style="color: #FDFEFE;font-size: 19px;" asp-controller="Main" asp-action="VNBMenu">Beverage</a>
-                            <a class="nav-link" asp-area="" asp-controller="Main" asp-action="Profile">&nbsp;Hey, @TempData["T1"] !</a>     
+                            <a class="nav-link" asp-area="" asp-controller="Main" asp-action="Profile">&nbsp;Hey, @userName !</a>     
                             <a class="nav-link" asp-controller="Main" asp-action="MainPage" >&nbsp; Logout</a>
                                      
                         </div>

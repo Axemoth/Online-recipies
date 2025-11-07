@@ -29,9 +29,15 @@ namespace OnlineFoodReceipe.Controllers
         {
             ViewBag.Id = mdb.GetCountId();
             ViewBag.Rid = mdb.GetCountRId();
-            TempData["T1"] = null;
             TempData["M1"] = "MainPage";
-            db.DeleteLogged();
+            
+            // Clear session on logout
+            if (IsUserLoggedIn())
+            {
+                HttpContext.Session.Clear();
+            }
+            TempData["T1"] = null;
+            
             ViewBag.FeedList = db.FeedbackInfo();
             return View();
         }
@@ -51,12 +57,46 @@ namespace OnlineFoodReceipe.Controllers
             return View();
         }
 
+        // Helper method to check if user is logged in
+        private bool IsUserLoggedIn()
+        {
+            var userId = HttpContext.Session.GetString("UserId");
+            return !string.IsNullOrEmpty(userId);
+        }
+
+        // Helper method to get logged in user info
+        private Login GetLoggedInUser()
+        {
+            var userIdValue = HttpContext.Session.GetString("UserId");
+            if (string.IsNullOrEmpty(userIdValue) || !int.TryParse(userIdValue, out var userId))
+            {
+                return null;
+            }
+
+            var roleIdValue = HttpContext.Session.GetString("UserRoleId");
+            int.TryParse(roleIdValue, out var roleId);
+
+            Login u = new Login
+            {
+                Id = userId,
+                UserName = HttpContext.Session.GetString("UserName"),
+                Email = HttpContext.Session.GetString("UserEmail"),
+                Password = HttpContext.Session.GetString("UserPassword"),
+                RoleID = roleId
+            };
+            return u;
+        }
+
         // Login Page Action
         [HttpGet]
         public IActionResult LoginPage()
         {
+            // If already logged in, redirect to menu
+            if (IsUserLoggedIn())
+            {
+                return RedirectToAction("VNBMenu");
+            }
             TempData["M1"] = null;
-            db.DeleteLogged();
             return View();
         }
         [HttpPost]
@@ -88,12 +128,17 @@ namespace OnlineFoodReceipe.Controllers
                 int res = db.Search(u.Email, u.Password);
                 if (res == 1)
                 {
-                    Email = u.Email;
-                    Password = u.Password;
                     u = db.GetName(u.Email, u.Password);
+                    
+                    // Store user info in session
+                    HttpContext.Session.SetString("UserId", u.Id.ToString());
+                    HttpContext.Session.SetString("UserName", u.UserName ?? string.Empty);
+                    HttpContext.Session.SetString("UserEmail", u.Email ?? string.Empty);
+                    HttpContext.Session.SetString("UserPassword", u.Password ?? string.Empty);
+                    HttpContext.Session.SetString("UserRoleId", u.RoleID.ToString());
+                    HttpContext.Session.SetString("ShowWelcome", "true");
+                    
                     TempData["T1"] = u.UserName;
-                    db.Temporary(Email);
-                    TempData["sucess"] = "sucess";
                     return RedirectToAction("VNBMenu");
                 }
                 else
@@ -123,10 +168,22 @@ namespace OnlineFoodReceipe.Controllers
         // Veg Non-Veg Beverage (VNB) Page Action
         public IActionResult VNBMenu()
         {
-            Login u = new Login();
-            Logged l = db.TempName();
-            u = db.GetName(l.Name, l.Password);
+            // Check if user is logged in, redirect to login if not
+            if (!IsUserLoggedIn())
+            {
+                return RedirectToAction("LoginPage");
+            }
+
+            Login u = GetLoggedInUser();
             TempData["T1"] = u.UserName;
+            
+            // Check if we should show welcome notification
+            if (HttpContext.Session.GetString("ShowWelcome") == "true")
+            {
+                TempData["ShowWelcome"] = "true";
+                HttpContext.Session.Remove("ShowWelcome");
+            }
+            
             return View();
         }
 
@@ -134,12 +191,17 @@ namespace OnlineFoodReceipe.Controllers
         [HttpGet]
         public IActionResult StateWiseMenu(string id)
         {
-            Login u = new Login();
-            Logged l = db.TempName();
-            u = db.GetName(l.Name, l.Password);
+            if (!IsUserLoggedIn())
+            {
+                return RedirectToAction("LoginPage");
+            }
+
+            Login u = GetLoggedInUser();
             TempData["T1"] = u.UserName;
             ViewBag.Id = u.Id;
-            db.Temporaryvnb(l.Name,id);
+            
+            // Store VNB in session
+            HttpContext.Session.SetString("VNB", id);
 
             State m = new State();
             ViewBag.StateList = mdb.GetAllState(id);
@@ -148,6 +210,11 @@ namespace OnlineFoodReceipe.Controllers
         [HttpPost]
         public IActionResult StateWiseMenu(OnlineFoodReceipe.Models.Img imag, string ingredient, string htm, string choice1, string choice2)
         {
+            if (!IsUserLoggedIn())
+            {
+                return RedirectToAction("LoginPage");
+            }
+
             Menu m = new Menu();
             string uniqueFileName = null;
             if (imag.Photo != null)
@@ -168,14 +235,15 @@ namespace OnlineFoodReceipe.Controllers
             m.State = choice2;
             m.VNB = choice1;            //VNB = Veg Non-Veg Beverage
             
-            Login u = new Login();
-            Logged l = db.TempName();
-            u = db.GetRole(l.Name, l.Password);
+            Login u = GetLoggedInUser();
             m.RoleId = u.RoleID;
             m.UserId = u.Id;
             int res = mdb.Insert(m);
             if (res == 1)
-                return RedirectToAction("StateWiseMenu");
+            {
+                string vnb = HttpContext.Session.GetString("VNB") ?? choice1;
+                return RedirectToAction("StateWiseMenu", new { id = vnb });
+            }
 
             return View();
         }
@@ -184,24 +252,35 @@ namespace OnlineFoodReceipe.Controllers
         [HttpGet]
         public IActionResult MainMenu(string id)
         {
-            Login u = new Login();
-            Logged l = db.TempName();
-            u = db.GetName(l.Name, l.Password);
+            if (!IsUserLoggedIn())
+            {
+                return RedirectToAction("LoginPage");
+            }
+
+            Login u = GetLoggedInUser();
             TempData["T1"] = u.UserName;
-            db.Temporarystate(l.Name, id);
-            TempData["sname"] = l.Sname;
+            
+            // Store state in session
+            HttpContext.Session.SetString("StateName", id);
+            TempData["sname"] = id;
 
             Menu m = new Menu();
             ViewBag.Id = u.Id;
             ViewBag.Image = m.Photo;
-            ViewBag.Vnb = l.Vnb;            //vnb = Veg Non-Veg Beverage
-            ViewBag.List = mdb.GetAllProducts(id,l.Vnb);
+            string vnb = HttpContext.Session.GetString("VNB") ?? "";
+            ViewBag.Vnb = vnb;            //vnb = Veg Non-Veg Beverage
+            ViewBag.List = mdb.GetAllProducts(id, vnb);
             return View();
         }
 
         [HttpPost]
         public IActionResult MainMenu(OnlineFoodReceipe.Models.Img imag, string ingredient, string htm, string choice1, string choice2)
         {
+            if (!IsUserLoggedIn())
+            {
+                return RedirectToAction("LoginPage");
+            }
+
             Menu m = new Menu();
             string uniqueFileName = null;
             if (imag.Photo != null)
@@ -222,14 +301,15 @@ namespace OnlineFoodReceipe.Controllers
             m.State = choice2;
             m.VNB = choice1;            //VNB = Veg Non-Veg Beverage
 
-            Login u = new Login();
-            Logged l = db.TempName();
-            u = db.GetRole(l.Name, l.Password);
+            Login u = GetLoggedInUser();
             m.RoleId = u.RoleID;
             m.UserId = u.Id;
             int res = mdb.Insert(m);
             if (res == 1)
-                return RedirectToAction("MainMenu");
+            {
+                string stateName = HttpContext.Session.GetString("StateName") ?? choice2;
+                return RedirectToAction("MainMenu", new { id = stateName });
+            }
             return View();
         }
 
@@ -237,9 +317,12 @@ namespace OnlineFoodReceipe.Controllers
         [HttpGet]
         public IActionResult Info(int id)
         {
-            Login u = new Login();
-            Logged l = db.TempName();
-            u = db.GetName(l.Name, l.Password);
+            if (!IsUserLoggedIn())
+            {
+                return RedirectToAction("LoginPage");
+            }
+
+            Login u = GetLoggedInUser();
             TempData["T1"] = u.UserName;
 
             Menu m = mdb.GetInfo(id);
@@ -257,12 +340,17 @@ namespace OnlineFoodReceipe.Controllers
         [HttpGet]
         public IActionResult BeverageMenu(string id)
         {
-            Login u = new Login();
-            Logged l = db.TempName();
-            u = db.GetName(l.Name, l.Password);
+            if (!IsUserLoggedIn())
+            {
+                return RedirectToAction("LoginPage");
+            }
+
+            Login u = GetLoggedInUser();
             TempData["T1"] = u.UserName;
             ViewBag.Id = u.Id;
-            db.Temporaryvnb(l.Name, id);
+            
+            // Store VNB in session
+            HttpContext.Session.SetString("VNB", id);
 
             State m = new State();
             ViewBag.List = mdb.GetBeverageList(id);
@@ -272,6 +360,11 @@ namespace OnlineFoodReceipe.Controllers
         [HttpPost]
         public IActionResult BeverageMenu(OnlineFoodReceipe.Models.Img imag, string ingredient, string htm, string choice1, string choice2)
         {
+            if (!IsUserLoggedIn())
+            {
+                return RedirectToAction("LoginPage");
+            }
+
             Menu m = new Menu();
             string uniqueFileName = null;
             if (imag.Photo != null)
@@ -292,14 +385,15 @@ namespace OnlineFoodReceipe.Controllers
             m.State = choice2;
             m.VNB = choice1;        //VNB = Veg Non-Veg Beverage
 
-            Login u = new Login();
-            Logged l = db.TempName();
-            u = db.GetRole(l.Name, l.Password);
+            Login u = GetLoggedInUser();
             m.RoleId = u.RoleID;
             m.UserId = u.Id;
             int res = mdb.Insert(m);
             if (res == 1)
-                return RedirectToAction("BeverageMenu");
+            {
+                string vnb = HttpContext.Session.GetString("VNB") ?? choice1;
+                return RedirectToAction("BeverageMenu", new { id = vnb });
+            }
             return View();
         }
 
@@ -307,45 +401,54 @@ namespace OnlineFoodReceipe.Controllers
         [HttpGet]
         public IActionResult Modify()
         {
-            Login u = new Login();
-            Logged l = db.TempName();
-            u = db.GetName(l.Name, l.Password);
+            if (!IsUserLoggedIn())
+            {
+                return RedirectToAction("LoginPage");
+            }
+
+            Login u = GetLoggedInUser();
             TempData["T1"] = u.UserName;
-            TempData["sname"] = l.Sname;    // Sname = State Name
+            string sname = HttpContext.Session.GetString("StateName") ?? "";
+            TempData["sname"] = sname;    // Sname = State Name
+            string vnb = HttpContext.Session.GetString("VNB") ?? "";
+            
             if (u.RoleID == 1)
             {
                 Menu m = new Menu();
                 ViewBag.Image = m.Photo;
-                ViewBag.List = mdb.GetAllProducts(l.Sname,l.Vnb);
+                ViewBag.List = mdb.GetAllProducts(sname, vnb);
             }
             else
             {
                 Menu m = new Menu();
                 ViewBag.Image = m.Photo;
-                ViewBag.List = mdb.GetAllProductsForModify(l.Sname, u.Id);
+                ViewBag.List = mdb.GetAllProductsForModify(sname, u.Id);
             }
             return View();
         }
         [HttpGet]
         public IActionResult ModifyBeverage()
         {
+            if (!IsUserLoggedIn())
+            {
+                return RedirectToAction("LoginPage");
+            }
 
-            Login u = new Login();
-            Logged l = db.TempName();
-            u = db.GetName(l.Name, l.Password);
+            Login u = GetLoggedInUser();
             TempData["T1"] = u.UserName;
-            TempData["sname"] = l.Sname;    //Sname = State Name
+            string vnb = HttpContext.Session.GetString("VNB") ?? "";
+            
             if (u.RoleID == 1)
             {
                 Menu m = new Menu();
                 ViewBag.Image = m.Photo;
-                ViewBag.List = mdb.GetBeverageList(l.Vnb);
+                ViewBag.List = mdb.GetBeverageList(vnb);
             }
             else
             {
                 Menu m = new Menu();
                 ViewBag.Image = m.Photo;
-                ViewBag.List = mdb.GetBeverageListByUser(l.Vnb, u.Id);
+                ViewBag.List = mdb.GetBeverageListByUser(vnb, u.Id);
             }
             return View();
         }
@@ -354,9 +457,12 @@ namespace OnlineFoodReceipe.Controllers
         [HttpGet]
         public IActionResult InfoEdit(int id)
         {
-            Login u = new Login();
-            Logged l = db.TempName();
-            u = db.GetName(l.Name, l.Password);
+            if (!IsUserLoggedIn())
+            {
+                return RedirectToAction("LoginPage");
+            }
+
+            Login u = GetLoggedInUser();
             TempData["T1"] = u.UserName;
             Menu m = mdb.GetInfo(id);
             ViewBag.Rid = m.RId;
@@ -373,9 +479,12 @@ namespace OnlineFoodReceipe.Controllers
         [HttpPost]
         public IActionResult InfoEdit(OnlineFoodReceipe.Models.Img imag,int id, int rid, string youtube, string rname, string ingredient, string htm, string choice1, string choice2)
         {
-            Login u = new Login();
-            Logged l = db.TempName();
-            u = db.GetName(l.Name, l.Password);
+            if (!IsUserLoggedIn())
+            {
+                return RedirectToAction("LoginPage");
+            }
+
+            Login u = GetLoggedInUser();
             TempData["T1"] = u.UserName;
             Menu m = new Menu();
             string uniqueFileName = null;
@@ -449,9 +558,12 @@ namespace OnlineFoodReceipe.Controllers
         [HttpGet]
         public IActionResult Profile()
         {
-            Login u = new Login();
-            Logged l = db.TempName();
-            u = db.GetName(l.Name, l.Password);
+            if (!IsUserLoggedIn())
+            {
+                return RedirectToAction("LoginPage");
+            }
+
+            Login u = GetLoggedInUser();
             TempData["T1"] = u.UserName;
             int id = u.Id;
 
@@ -472,6 +584,14 @@ namespace OnlineFoodReceipe.Controllers
         [HttpPost]
         public IActionResult Profile(OnlineFoodReceipe.Models.Profile pro, int id, string remove, string username, string email, string password, string gender, string profession, string dob, string city)
         {
+            if (!IsUserLoggedIn())
+            {
+                return RedirectToAction("LoginPage");
+            }
+
+            Login u = GetLoggedInUser();
+            TempData["T1"] = u.UserName;
+            
             Profile p = new Profile();
             string uniqueFileName = null;
             if (pro.ProfilePhoto != null)
