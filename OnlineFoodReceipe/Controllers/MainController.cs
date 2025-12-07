@@ -407,10 +407,22 @@ namespace OnlineFoodReceipe.Controllers
             }
 
             Login u = GetLoggedInUser();
+            if (u == null)
+            {
+                return RedirectToAction("LoginPage");
+            }
+
             TempData["T1"] = u.UserName;
             string sname = HttpContext.Session.GetString("StateName") ?? "";
-            TempData["sname"] = sname;    // Sname = State Name
             string vnb = HttpContext.Session.GetString("VNB") ?? "";
+            
+            // If required session values are missing, redirect to menu selection
+            if (string.IsNullOrEmpty(sname) || string.IsNullOrEmpty(vnb))
+            {
+                return RedirectToAction("VNBMenu");
+            }
+
+            TempData["sname"] = sname;    // Sname = State Name
             
             if (u.RoleID == 1)
             {
