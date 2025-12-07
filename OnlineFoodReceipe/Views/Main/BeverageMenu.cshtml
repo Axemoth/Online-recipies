@@ -28,8 +28,54 @@
                     </button>
                 </div>
                 <div class="col-md-2" >
-                    <a class="nav-link" style="background: #3BA046;border-radius: 4px 5px;padding:10px;"  asp-controller="Main" asp-action="ModifyBeverage">Modify</a>
+                    <a class="btn btn-modify" asp-controller="Main" asp-action="ModifyBeverage" style="text-decoration: none; display: inline-block;">
+                        <span class="btn-modify__text">Modify</span>
+                        <span class="btn-modify__icon">
+                            <ion-icon name="create-outline"></ion-icon>
+                        </span>
+                    </a>
                 </div>
+                <style>
+                    .btn-modify {
+                        background: linear-gradient(135deg, #3BA046 0%, #2E7D32 100%);
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                        padding: 12px 20px;
+                        font-size: 16px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        transition: all 0.3s ease;
+                        box-shadow: 0 4px 6px rgba(59, 160, 70, 0.3);
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 8px;
+                        text-decoration: none;
+                    }
+                    
+                    .btn-modify:hover {
+                        background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%);
+                        transform: translateY(-2px);
+                        box-shadow: 0 6px 12px rgba(59, 160, 70, 0.4);
+                        color: white;
+                        text-decoration: none;
+                    }
+                    
+                    .btn-modify:active {
+                        transform: translateY(0);
+                        box-shadow: 0 2px 4px rgba(59, 160, 70, 0.3);
+                    }
+                    
+                    .btn-modify__text {
+                        display: inline-block;
+                    }
+                    
+                    .btn-modify__icon {
+                        display: inline-flex;
+                        align-items: center;
+                        font-size: 18px;
+                    }
+                </style>
             </div>
         </div>
         

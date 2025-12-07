@@ -416,10 +416,26 @@ namespace OnlineFoodReceipe.Controllers
             string sname = HttpContext.Session.GetString("StateName") ?? "";
             string vnb = HttpContext.Session.GetString("VNB") ?? "";
             
-            // If required session values are missing, redirect to menu selection
-            if (string.IsNullOrEmpty(sname) || string.IsNullOrEmpty(vnb))
+            // For admin users, both sname and vnb are required
+            // For regular users, only sname is required
+            if (u.RoleID == 1)
             {
-                return RedirectToAction("VNBMenu");
+                if (string.IsNullOrEmpty(sname) || string.IsNullOrEmpty(vnb))
+                {
+                    return RedirectToAction("VNBMenu");
+                }
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(sname))
+                {
+                    // Try to get VNB and redirect to appropriate menu if available
+                    if (!string.IsNullOrEmpty(vnb))
+                    {
+                        return RedirectToAction("StateWiseMenu", new { id = vnb });
+                    }
+                    return RedirectToAction("VNBMenu");
+                }
             }
 
             TempData["sname"] = sname;    // Sname = State Name
@@ -447,8 +463,20 @@ namespace OnlineFoodReceipe.Controllers
             }
 
             Login u = GetLoggedInUser();
+            if (u == null)
+            {
+                return RedirectToAction("LoginPage");
+            }
+
             TempData["T1"] = u.UserName;
             string vnb = HttpContext.Session.GetString("VNB") ?? "";
+            
+            // Ensure VNB is set for beverages
+            if (string.IsNullOrEmpty(vnb))
+            {
+                vnb = "Beverage";
+                HttpContext.Session.SetString("VNB", vnb);
+            }
             
             if (u.RoleID == 1)
             {
